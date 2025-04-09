@@ -1,39 +1,122 @@
-# EduSphere
-🌍 A revolutionary online platform offering world-class, free education for everyone — built with PHP, TailwindCSS, JS, and MySQL.
+# Live School - World-Class Free Education Platform
 
+A modern web application for delivering free educational content, featuring course management, student progress tracking, and interactive quizzes.
 
+## Features
 
-# 🎓 EduSphere Live - World-Class Free Education for Everyone
+- User Authentication (Student/Teacher roles)
+- Course Management
+- PDF and Video Lessons
+- Interactive Quizzes
+- Progress Tracking
+- Modern, Responsive UI
+- Student Dashboard
+- Teacher Dashboard
 
-EduSphere Live is a mission-driven online platform that delivers **free, high-quality education** to students from all walks of life.  
-It empowers learners and educators with powerful features, a clean UI, and seamless course delivery.
+## Tech Stack
 
-> 🚀 Built using PHP, Tailwind CSS, Vanilla JS, and MySQL.
+- Backend: PHP
+- Frontend: HTML, Tailwind CSS, JavaScript
+- Database: MySQL
+- Environment: XAMPP/Laragon (localhost)
 
----
+## Prerequisites
 
-## 🔥 Core Features
+1. XAMPP (or Laragon) with:
+   - PHP 7.4 or higher
+   - MySQL 5.7 or higher
+   - Apache web server
+2. Web browser (Chrome, Firefox, Safari, or Edge)
 
-- 🌐 Responsive landing page with CTA for learners and educators
-- 🔐 Authentication system (register/login/logout)
-- 👨‍🏫 Role-based dashboards (Student / Teacher / Admin)
-- 📚 Course browsing and enrollment
-- 🧠 Quiz system with scoring & assessment
-- 🎯 Gamified learning (XP, streaks, leaderboard, certificates)
-- 📊 Analytics dashboard for performance tracking
-- 🌓 Dark Mode & Light Mode toggle (top-right corner!)
-- 🗃️ Backend powered by PHP + MySQL
-- 📹 Integrated custom video player for lessons
+## Installation
 
----
+1. Clone or download this repository to your web server's root directory:
+   ```bash
+   # For XAMPP (Windows)
+   C:\xampp\htdocs\live-school
 
-## 💡 Technologies Used
+   # For XAMPP (Linux/Mac)
+   /opt/lampp/htdocs/live-school
 
-| Frontend        | Backend        | Database |
-|-----------------|----------------|----------|
-| HTML5 + TailwindCSS | PHP 8.x         | MySQL    |
-| JavaScript       | XAMPP (Apache + PHP) |          |
+   # For Laragon
+   C:\laragon\www\live-school
+   ```
 
----
+2. Create a new MySQL database:
+   - Open phpMyAdmin (http://localhost/phpmyadmin)
+   - Create a new database named 'live_school'
+   - Import the database schema from `database/schema.sql`
 
+3. Configure the application:
+   - Open `config/config.php`
+   - Update the database connection settings if needed
+   - Update the BASE_URL constant to match your setup
 
+4. Set up the file permissions (Linux/Mac):
+   ```bash
+   chmod 755 -R /path/to/live-school
+   chmod 777 -R /path/to/live-school/uploads
+   ```
+
+5. Access the application:
+   ```
+   http://localhost/live-school
+   ```
+
+## Directory Structure
+
+```
+live-school/
+├── auth/               # Authentication pages
+├── config/             # Configuration files
+├── courses/            # Course management
+├── dashboard/          # User dashboards
+├── database/          # Database schema
+├── includes/          # Shared components
+├── quizzes/           # Quiz functionality
+├── uploads/           # User uploads
+├── .htaccess         # Apache configuration
+└── README.md         # This file
+```
+
+## Usage
+
+1. Register as either a student or teacher
+2. For Teachers:
+   - Create courses with lessons
+   - Upload course materials (PDF/video links)
+   - Create quizzes
+   - Monitor student progress
+3. For Students:
+   - Browse available courses
+   - Enroll in courses
+   - Access course materials
+   - Take quizzes
+   - Track progress
+
+## Security Features
+
+- Password hashing
+- SQL injection prevention
+- XSS protection
+- CSRF protection
+- Secure file upload handling
+- Role-based access control
+
+## Maintenance
+
+- Regularly backup the database
+- Monitor the uploads directory size
+- Keep PHP and MySQL updated
+- Check error logs regularly
+
+## Support
+
+For issues or questions, please:
+1. Check the existing documentation
+2. Review your configuration
+3. Contact the system administrator
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
