@@ -36,15 +36,4 @@ It empowers learners and educators with powerful features, a clean UI, and seaml
 
 ---
 
-## 📷 Screenshots
 
-> Want me to design a screenshot section layout for your README? Just say the word.
-
----
-
-## 🚀 Getting Started
-
-### Step 1: Clone the Repo
-```bash
-git clone https://github.com/YourUsername/edusphere-live.git
-cd edusphere-live
