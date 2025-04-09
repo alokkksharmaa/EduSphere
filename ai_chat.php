@@ -2,106 +2,164 @@
 require_once '../config/config.php';
 require_once '../includes/utilities.php';
 
-header('Content-Type: application/json');
-
 if (!isLoggedIn() || !isStudent()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
+    redirect('/auth/login.php');
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'Method not allowed']);
-    exit;
+$db = connectDB();
+
+// Get AI configuration
+$stmt = $db->prepare("SELECT * FROM ai_config LIMIT 1");
+$stmt->execute();
+$ai_config = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$ai_config || empty($ai_config['api_key'])) {
+    $_SESSION['error'] = 'AI chat is not configured. Please contact the administrator.';
+    redirect('/dashboard/student.php');
 }
 
-if (!CSRF::verifyToken($_POST['csrf_token'] ?? '')) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Invalid token']);
-    exit;
-}
+// Get chat history
+$stmt = $db->prepare("
+    SELECT * FROM ai_chat_history 
+    WHERE user_id = ? 
+    ORDER BY created_at DESC 
+    LIMIT 50
+");
+$stmt->execute([$_SESSION['user_id']]);
+$chat_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$query = $_POST['query'] ?? '';
-if (empty($query)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Query is required']);
-    exit;
-}
+$pageTitle = "AI Academic Assistant";
 
-try {
-    $db = connectDB();
-    
-    // Get AI configuration
-    $stmt = $db->prepare("SELECT * FROM ai_config LIMIT 1");
-    $stmt->execute();
-    $ai_config = $stmt->fetch(PDO::FETCH_ASSOC);
+ob_start();
+?>
 
-    if (!$ai_config || empty($ai_config['api_key'])) {
-        throw new Exception('AI chat is not configured');
-    }
+<div class="max-w-4xl mx-auto" x-data="{ message: '', loading: false }">
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <!-- Chat Header -->
+        <div class="bg-blue-600 p-4">
+            <h1 class="text-xl font-bold text-white">AI Academic Assistant</h1>
+            <p class="text-blue-100 text-sm">
+                Ask any academic questions and get instant help
+            </p>
+        </div>
 
-    // Call OpenAI API
-    $ch = curl_init('https://api.openai.com/v1/chat/completions');
-    
-    $data = [
-        'model' => $ai_config['model'],
-        'messages' => [
-            [
-                'role' => 'system',
-                'content' => 'You are a helpful academic assistant. Provide clear, accurate, and educational responses to student questions. Focus on explaining concepts thoroughly and providing examples when relevant.'
-            ],
-            [
-                'role' => 'user',
-                'content' => $query
-            ]
-        ],
-        'max_tokens' => $ai_config['max_tokens'],
-        'temperature' => $ai_config['temperature'],
-    ];
+        <!-- Chat Messages -->
+        <div class="h-[600px] overflow-y-auto p-4 space-y-4" id="chatMessages">
+            <?php foreach (array_reverse($chat_history) as $chat): ?>
+                <!-- User Message -->
+                <div class="flex justify-end mb-4">
+                    <div class="bg-blue-100 rounded-lg p-3 max-w-[80%]">
+                        <p class="text-gray-800"><?php echo nl2br(htmlspecialchars($chat['query'])); ?></p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <?php echo date('g:i a', strtotime($chat['created_at'])); ?>
+                        </p>
+                    </div>
+                </div>
 
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $ai_config['api_key']
-        ]
-    ]);
+                <!-- AI Response -->
+                <div class="flex justify-start mb-4">
+                    <div class="bg-gray-100 rounded-lg p-3 max-w-[80%]">
+                        <p class="text-gray-800"><?php echo nl2br(htmlspecialchars($chat['response'])); ?></p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            <?php echo date('g:i a', strtotime($chat['created_at'])); ?>
+                        </p>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
 
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+        <!-- Message Input -->
+        <div class="border-t p-4">
+            <form @submit.prevent="sendMessage" 
+                  class="flex space-x-2"
+                  id="chatForm">
+                <input type="hidden" name="csrf_token" value="<?php echo CSRF::generateToken(); ?>">
+                <textarea x-model="message"
+                          class="flex-1 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          rows="2"
+                          placeholder="Type your question here..."
+                          :disabled="loading"></textarea>
+                <button type="submit"
+                        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                        :disabled="loading || !message.trim()">
+                    <span x-show="!loading">Send</span>
+                    <span x-show="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
 
-    if ($http_code !== 200) {
-        throw new Exception('Failed to get response from AI service');
-    }
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('chatMessages', () => ({
+        message: '',
+        loading: false,
 
-    $result = json_decode($response, true);
-    if (!isset($result['choices'][0]['message']['content'])) {
-        throw new Exception('Invalid response from AI service');
-    }
+        async sendMessage() {
+            if (!this.message.trim() || this.loading) return;
 
-    $ai_response = $result['choices'][0]['message']['content'];
+            this.loading = true;
+            const formData = new FormData();
+            formData.append('query', this.message);
+            formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
 
-    // Save to chat history
-    $stmt = $db->prepare("
-        INSERT INTO ai_chat_history (user_id, query, response)
-        VALUES (?, ?, ?)
-    ");
-    $stmt->execute([$_SESSION['user_id'], $query, $ai_response]);
+            try {
+                const response = await fetch('<?php echo BASE_URL; ?>/api/ai_chat.php', {
+                    method: 'POST',
+                    body: formData
+                });
 
-    echo json_encode([
-        'success' => true,
-        'response' => $ai_response
-    ]);
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Add messages to chat
+                    const chatMessages = document.getElementById('chatMessages');
+                    
+                    // User message
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'flex justify-end mb-4';
+                    userDiv.innerHTML = `
+                        <div class="bg-blue-100 rounded-lg p-3 max-w-[80%]">
+                            <p class="text-gray-800">${this.message}</p>
+                            <p class="text-xs text-gray-500 mt-1">Just now</p>
+                        </div>
+                    `;
+                    chatMessages.appendChild(userDiv);
 
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => $e->getMessage()
-    ]);
-}
+                    // AI response
+                    const aiDiv = document.createElement('div');
+                    aiDiv.className = 'flex justify-start mb-4';
+                    aiDiv.innerHTML = `
+                        <div class="bg-gray-100 rounded-lg p-3 max-w-[80%]">
+                            <p class="text-gray-800">${data.response}</p>
+                            <p class="text-xs text-gray-500 mt-1">Just now</p>
+                        </div>
+                    `;
+                    chatMessages.appendChild(aiDiv);
+
+                    // Clear input and scroll to bottom
+                    this.message = '';
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else {
+                    alert(data.error || 'Failed to get response');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to send message');
+            } finally {
+                this.loading = false;
+            }
+        }
+    }));
+});
+</script>
+
+<?php
+$content = ob_get_clean();
+require_once '../includes/layout.php';
 ?>
